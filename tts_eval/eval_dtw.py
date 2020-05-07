@@ -1,4 +1,3 @@
-import librosa
 import numpy as np
 import multiprocessing as mp
 
@@ -24,18 +23,18 @@ def plot_path(gt, pred, path, start_a=0, start_b=0, **plt_kwargs):
     # create connection line between subpl not
     
     for p in path[::25]:
-        con = ConnectionPatch(xyA=(p[0]+start_a, gt.shape[0]-1), xyB=(p[1]+start_b, 0), coordsA="data", coordsB="data",
+        con = ConnectionPatch(xyA=(p[0]+start_a, 0), xyB=(p[1]+start_b, 0), coordsA="data", coordsB="data",
                         axesA=ax1, axesB=ax2, color="red")
         ax1.add_artist(con)
 
     ax1.set_ylabel("ground truth")
-    ax1.imshow(gt[::-1,:], cmap='inferno')
+    ax1.imshow(gt[::-1,:], cmap='inferno', extent=[0, gt.shape[1], 0, gt.shape[0]])
     ax2.set_ylabel("prediction")
-    ax2.imshow(pred[::-1,:], cmap='inferno')
+    ax2.imshow(pred[::-1,:], cmap='inferno', extent=[0, pred.shape[1], 0, pred.shape[0]])
     plt.show()
 
 @njit
-def f_dist(x, y):
+def _f_dist(x, y):
     """
     Calculate distance between frame x and frame y
     Arguments:
@@ -103,7 +102,7 @@ def _eval_fn(gt, pred, config):
     gt_spec = normalize_spectogram(gt_spec[:, gt_start_frame:gt_end_frame])
     pred_spec = normalize_spectogram(pred_spec[:, pred_start_frame:pred_end_frame])
     
-    distance, path = fastdtw(gt_spec.T, pred_spec.T, dist=f_dist)
+    distance, path = fastdtw(gt_spec.T, pred_spec.T, dist=_f_dist)
     return distance/len(path), path, (gt_start_frame, gt_end_frame), (pred_start_frame, pred_end_frame)
     
 class EvalDTW():
@@ -126,12 +125,6 @@ class EvalDTW():
             self.pool = None
         else:
             self.pool = mp.Pool(self.num_processes)
-        
-    def _load_wav(self, path):
-        sr, signal = wavfile.read(path)
-        if sr != self.sample_rate:
-            signal = librosa.resample(signal.astype(np.float32), sr, self.sample_rate)
-        return signal
     
     def eval_fn(self, gt, pred):
         return _eval_fn(gt, pred, self.audio_config)
