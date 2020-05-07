@@ -29,9 +29,9 @@ def plot_path(gt, pred, path, start_a=0, start_b=0, **plt_kwargs):
         ax1.add_artist(con)
 
     ax1.set_ylabel("ground truth")
-    ax1.imshow(gt)
+    ax1.imshow(gt, cmap='inferno')
     ax2.set_ylabel("prediction")
-    ax2.imshow(pred)
+    ax2.imshow(pred, cmap='inferno')
     plt.show()
 
 @njit
