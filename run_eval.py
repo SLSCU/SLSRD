@@ -29,9 +29,12 @@ if __name__ == "__main__":
     print(f"Output File : {output_csv}")
     print(f"Total : {len(df)}")
     
-    D, _, _, _ = tts_eval.eval_parallel(df['groundtruth_wav'], df['synthesis_wav'])
+    D, paths, gt_speech_pos, pred_speech_pos = tts_eval.eval_parallel(df['groundtruth_wav'], df['synthesis_wav'])
     
     df['distance'] = D
+    df['path_lenght'] = [len(p) for p in paths]
+    df['gt_len'] = [gt_pos[1] - gt_pos[0] for gt_pos in gt_speech_pos]
+    df['pred_len'] = [pred_pos[1] - pred_pos[0] for pred_pos in pred_speech_pos]
     
-    df.to_csv(output_csv, index=False)  
+    df.to_csv(output_csv, index=False)
     

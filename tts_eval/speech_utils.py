@@ -11,7 +11,7 @@ def load_wav_file(path, sample_rate=22050):
     return signal
 
 def normalize_signal(signal):
-    return signal/32678.0
+    return signal/32768.0
     
 def normalize_spectogram(S):
     return (S-S.mean())/S.std()
@@ -19,7 +19,7 @@ def normalize_spectogram(S):
 def dBFS(signal, window_size, hop_length):
     """Compute Decibels relative to full scale ."""
     rms = librosa.feature.rms(signal, frame_length=window_size, hop_length=hop_length)[0]
-    return 20*np.log10(rms)
+    return 20*np.log10(rms+1e-6)
 
 def zeros_crossing_rate(signal, window_size, hop_length):
     """Compute short-time zero crossing rate."""
@@ -28,21 +28,21 @@ def zeros_crossing_rate(signal, window_size, hop_length):
     zr = librosa.zero_crossings(frames)
     return np.sum(zr,1)/window_size
 
-def find_speech_in_signal(signal, sample_rate, window_size, hop_length, dbfs_threshold=-50, zcr_threshold=0.2):
+def find_speech_in_signal(signal, sample_rate, window_size, hop_length, dbfs_threshold=-50, zcr_threshold=0.2, min_silence_threshold=0.05):
     """
     Find speech in signal with dBFS and zeros crossing rate
     """
     dbfs = dBFS(signal, window_size, hop_length)
     zcr = zeros_crossing_rate(signal, window_size, hop_length)
-    min_threshold = int(round(0.1*(sample_rate/hop_length))) # 0.1s
+    min_threshold = int(round(min_silence_threshold*(sample_rate/hop_length)))
     non_silence_indices = np.where((dbfs > dbfs_threshold) & (zcr < zcr_threshold))[0]
     prev_sel_idx = non_silence_indices[0]
     prev_idx = prev_sel_idx
     result_signal = list()
     for cur_idx in non_silence_indices[1:]:
-        if abs(prev_idx - cur_idx) > min_threshold or cur_idx == non_silence_indices[-1]: # if silence longer than 0.1s
+        if abs(prev_idx - cur_idx) > min_threshold or cur_idx == non_silence_indices[-1]: # if silence longer than min_silence_threshold
             sample_idx_1 = prev_sel_idx*hop_length
-            sample_idx_2 = cur_idx*hop_length
+            sample_idx_2 = prev_idx*hop_length
             if sample_idx_2 > len(signal):
                 sample_idx_2 = len(signal)-1
             slice_signal = signal[sample_idx_1:sample_idx_2]
@@ -76,6 +76,7 @@ def find_speech_melspectogram(S, sample_rate, n_fft, energy_band=(100, 1000), en
         start_frame = np.min(above_threshold)
         end_frame = np.max(above_threshold)
     return start_frame, end_frame
+
 
 def compute_melspectogram(signal, sample_rate, n_fft, window_size, hop_length, n_mels=80):
     S = librosa.stft(y=signal, n_fft=n_fft, hop_length=hop_length, win_length=window_size, 

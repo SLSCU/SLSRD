@@ -2,11 +2,12 @@
     "audio_config": {
         "sampling_rate": 22050,
         "num_features": 80,
-        "num_fft": 1024,
+        "num_fft": 2048,
         "window_size": 1024,
         "hop_length": 256,
-        "ste_threshold": 1.0,
-        "zcr_threshold": 0.1,
+        "dbfs_threshold": -50.0,
+        "zcr_threshold": 0.3,
+        "min_silence_threshold": 0.25,
         "energy_threshold": -450,
         "energy_band": [100, 1000],
         "filter_length": 1024

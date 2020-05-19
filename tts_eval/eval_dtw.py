@@ -9,9 +9,14 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 
 import tqdm
-from . import istarmap
-from .speech_utils import load_wav_file, normalize_signal, normalize_spectogram, \
-     compute_melspectogram, find_speech_in_signal, find_speech_melspectogram, dBFS
+try:
+    from istarmap import istarmap
+    from speech_utils import load_wav_file, normalize_signal, normalize_spectogram, \
+        compute_melspectogram, find_speech_in_signal, find_speech_melspectogram, dBFS
+except:
+    from .istarmap import istarmap
+    from .speech_utils import load_wav_file, normalize_signal, normalize_spectogram, \
+        compute_melspectogram, find_speech_in_signal, find_speech_melspectogram, dBFS
 
 def plot_path(gt, pred, path, start_a=0, start_b=0, **plt_kwargs):
     
@@ -33,7 +38,7 @@ def plot_path(gt, pred, path, start_a=0, start_b=0, **plt_kwargs):
     ax2.imshow(pred[::-1,:], cmap='inferno', extent=[0, pred.shape[1], 0, pred.shape[0]])
     plt.show()
 
-@njit
+# @njit
 def _f_dist(x, y):
     """
     Calculate distance between frame x and frame y
@@ -64,7 +69,10 @@ def _eval_fn(gt, pred, config):
     n_fft = config.get('num_fft', 1024)
     window_size = config.get('window_size', 1024)
     hop_length = config.get('hop_length', 256)
+    dbfs_threshold = config.get('dbfs_threshold', -50)
+    zcr_threshold = config.get("zcr_threshold", 0.1)
     energy_threshold = config.get('energy_threshold', -450)
+    min_silence_threashold = config.get("min_silence_threshold", 0.25)
     n_mels = config.get('num_features', 80)
     
     if isinstance(gt, str) and isinstance(pred, str):
@@ -83,8 +91,10 @@ def _eval_fn(gt, pred, config):
         pred_signal = normalize_signal(pred_signal)
     
     
-    gt_speech = find_speech_in_signal(gt_signal, sample_rate, window_size, hop_length)
-    pred_speech = find_speech_in_signal(pred_signal, sample_rate, window_size, hop_length)
+    gt_speech = find_speech_in_signal(gt_signal, sample_rate, window_size, hop_length, 
+                                      dbfs_threshold=dbfs_threshold, zcr_threshold=zcr_threshold, min_silence_threshold=min_silence_threashold)
+    pred_speech = find_speech_in_signal(pred_signal, sample_rate, window_size, hop_length,
+                                        dbfs_threshold=dbfs_threshold, zcr_threshold=zcr_threshold, min_silence_threshold=min_silence_threashold)
     
     # ### Gain same energy ###
     gt_dbfs = np.mean(dBFS(gt_speech, window_size, hop_length))
@@ -99,11 +109,12 @@ def _eval_fn(gt, pred, config):
     gt_start_frame, gt_end_frame = find_speech_melspectogram(gt_spec, sample_rate, n_fft, energy_threshold=energy_threshold)
     pred_start_frame, pred_end_frame = find_speech_melspectogram(pred_spec, sample_rate, n_fft, energy_threshold=energy_threshold)
     
-    gt_spec = normalize_spectogram(gt_spec[:, gt_start_frame:gt_end_frame])
-    pred_spec = normalize_spectogram(pred_spec[:, pred_start_frame:pred_end_frame])
+    gt_spec = normalize_spectogram(gt_spec[:,gt_start_frame:gt_end_frame])
+    pred_spec = normalize_spectogram(pred_spec[:,pred_start_frame:pred_end_frame])
     
     distance, path = fastdtw(gt_spec.T, pred_spec.T, dist=_f_dist)
     return distance/len(path), path, (gt_start_frame, gt_end_frame), (pred_start_frame, pred_end_frame)
+
     
 class EvalDTW():
     
@@ -165,35 +176,60 @@ if __name__ == "__main__":
     import time
     
     gt_wav_path = [
-        "/Users/thananchai/Projects/ASR/newera/ThaiTTS/tests/ref_wav/01 มีพระบรมราชโองการโปรดเกล้าโปรดกระหม่อมพระราชทานยศทหาร.wav",
-        "/Users/thananchai/Projects/ASR/newera/ThaiTTS/tests/ref_wav/03 ศึกแมนเชสเตอร์ดาร์บี้ในฟุตบอลพรีเมียร์ลีกอังกฤษ.wav",
-        "/Users/thananchai/Projects/ASR/newera/ThaiTTS/tests/ref_wav/13 ไก่งามเพราะขน คนจนเพราะกรรมขี่จรวด.wav"
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_groundtruth.wav',
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_groundtruth.wav',
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_groundtruth.wav',
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_groundtruth.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_001033.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_001033.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_000817.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_000817.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_001369.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_001369.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_009977.wav',
+        '/Users/thananchai/Projects/ASR/data/ground_truth_214/t/sample_009977.wav',
+        # "/Users/thananchai/Projects/ASR/newera/ThaiTTS/tests/ref_wav/01 มีพระบรมราชโองการโปรดเกล้าโปรดกระหม่อมพระราชทานยศทหาร.wav",
+        # "/Users/thananchai/Projects/ASR/newera/ThaiTTS/tests/ref_wav/03 ศึกแมนเชสเตอร์ดาร์บี้ในฟุตบอลพรีเมียร์ลีกอังกฤษ.wav",
+        # "/Users/thananchai/Projects/ASR/newera/ThaiTTS/tests/ref_wav/13 ไก่งามเพราะขน คนจนเพราะกรรมขี่จรวด.wav"
     ]
     
     pred_wav_path = [
-        "/Users/thananchai/Projects/ASR/newera/ThaiTTS/outputs/26tests/210420/wav/temp_90000_0.wav",
-        "/Users/thananchai/Projects/ASR/newera/ThaiTTS/outputs/26tests/210420/wav/temp_102000_2.wav",
-        "/Users/thananchai/Projects/ASR/newera/ThaiTTS/outputs/26tests/210420/wav/temp_102000_12.wav"
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_fs.wav',
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_90000.wav',
+        '/Users/thananchai/Projects/ASR/newera/tts_sample/web/public/wav/sample_001619_fs.wav',
+        '/Users/thananchai/Downloads/thai_Tacotron2_20200405_214_32_120k/sample_001619.wav',
+        '/Users/thananchai/Downloads/thai_fs900k_214_32_120k/sample_001033.wav',
+        '/Users/thananchai/Downloads/thai_Tacotron2_20200405_214_32_120k/sample_001033.wav',
+        '/Users/thananchai/Downloads/thai_fs900k_214_32_120k/sample_000817.wav',
+        '/Users/thananchai/Downloads/thai_Tacotron2_20200405_214_32_120k/sample_000817.wav',
+        '/Users/thananchai/Downloads/thai_fs900k_214_32_120k/sample_001369.wav',
+        '/Users/thananchai/Downloads/thai_Tacotron2_20200405_214_32_120k/sample_001369.wav',
+        '/Users/thananchai/Downloads/thai_fs900k_214_32_120k/sample_009977.wav',
+        '/Users/thananchai/Downloads/thai_Tacotron2_20200405_214_32_120k/sample_009977.wav'
+        
+        # "/Users/thananchai/Projects/ASR/newera/ThaiTTS/outputs/26tests/210420/wav/temp_90000_0.wav",
+        # "/Users/thananchai/Projects/ASR/newera/ThaiTTS/outputs/26tests/210420/wav/temp_102000_2.wav",
+        # "/Users/thananchai/Projects/ASR/newera/ThaiTTS/outputs/26tests/210420/wav/temp_102000_12.wav"
     ]
     
     configs = {
     "audio_config": {
         "sampling_rate": 22050,
         "num_features": 80,
-        "num_fft": 1024,
-        "window_size": 1024,
-        "hop_length": 256,
-        "ste_threshold": 1.0,
-        "zcr_threshold": 0.1,
+        "num_fft": 2048,
+        "window_size": 1048,
+        "hop_length": 512,
+        "zcr_threshold": 0.3,
+        "dbfs_threshold": -50,
+        "min_silence_threshold": 0.2,
         "energy_threshold": -450,
-        "energy_band": [100, 1000],
-        "filter_length": 1024
     },
 
     "eval_config": {
         "num_processes":6
     }
 }
+
     
     tts_eval = EvalDTW(configs)
     
@@ -216,8 +252,11 @@ if __name__ == "__main__":
     print("TEST PARALLEL EVALUTION")
     
     start = time.time()
-    
+    print(len(gt_wav_path), len(pred_wav_path))
     dist = tts_eval.eval_parallel(gt_wav_path, pred_wav_path)[0]
+    
+    print(dist)
+    
     print("Average Distance : {} ".format(np.mean(dist)))
     print("Time used : {} ".format(time.time()-start))
     ###########################
