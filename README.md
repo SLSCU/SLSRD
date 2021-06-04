@@ -24,4 +24,4 @@ python run_eval.py "input csv file format" --ref_path_col  "column name of refe
 
 ```
 
-Metadata of wav2letter+ pretrain without hovorod has provide in floder 'w2lplus_eng_meta'
+Metadata of wav2letter+ pretrain without hovorod has provide in folder 'w2lplus_eng_meta'
