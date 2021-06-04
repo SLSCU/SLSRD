@@ -1,4 +1,4 @@
-# Spectral and Latent Speech Representation for TTS Evaluation
+# Spectral and Latent Speech Representation Distortion for TTS Evaluation
 ## HOW TO USE
 
 ```
