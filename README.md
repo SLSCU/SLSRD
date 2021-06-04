@@ -1,6 +1,9 @@
-# HOW TO USE
+# Spectral and Latent Speech Representation for TTS Evaluation
+## HOW TO USE
 
+```
 python run_eval.py "input csv file format" --ref_path_col  "column name of reference path in csv" --syn_path_col "column name of systhesized path in csv" --output "output csv file format"  --config "config file"
+```
 
 ## Example parameter in config file
 
