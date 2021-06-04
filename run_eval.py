@@ -1,15 +1,16 @@
 import argparse
 
 import json
-import numpy as np
 import pandas as pd
 
-from tts_eval import EvalDTW
+from slsd import TTSEval
     
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='TTS Evaluation')
     parser.add_argument("csv", type=str, help='csv file')
+    parser.add_argument("--ref_path_col", type=str, help='column name of reference aduio path')
+    parser.add_argument("--syn_path_col", type=str, help='column name of synthesis aduio path')
     parser.add_argument("--output", type=str, default='result.csv', help='output')
     parser.add_argument('--config_file', type=str, default='config.json',
                         help='configuration file')
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     
     config = json.load(open(config_f))
     
-    tts_eval = EvalDTW(config)
+    tts_eval = TTSEval(config)
     
     df = pd.read_csv(input_csv)
     
@@ -29,12 +30,10 @@ if __name__ == "__main__":
     print(f"Output File : {output_csv}")
     print(f"Total : {len(df)}")
     
-    D, paths, gt_speech_pos, pred_speech_pos = tts_eval.eval_parallel(df['groundtruth_wav'], df['synthesis_wav'])
+    D = tts_eval.eval(df[args.ref_path_col], 
+                      df[args.syn_path_col])
     
     df['distance'] = D
-    df['path_lenght'] = [len(p) for p in paths]
-    df['gt_len'] = [gt_pos[1] - gt_pos[0] for gt_pos in gt_speech_pos]
-    df['pred_len'] = [pred_pos[1] - pred_pos[0] for pred_pos in pred_speech_pos]
     
     df.to_csv(output_csv, index=False)
     

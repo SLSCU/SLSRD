@@ -1,9 +1,24 @@
 # HOW TO USE
 
-python run_eval.py input_csv --output output_csv --config config_file
+python run_eval.py "input csv file format" --ref_path_col  "column name of reference path in csv" --syn_path_col "column name of systhesized path in csv" --output "output csv file format"  --config "config file"
 
-input_csv : csv file has 'groundtruth_wav' presenting paths of groundtruth speech wav file and 'synthesis_wav' presenting paths of synthesis speech wav file.
-output_csv : csv file has 'groundtruth_wav' presenting paths of groundtruth speech wav file, 'synthesis_wav' presenting paths of synthesis speech wav file and 'distance' presenting distance between groundtruth and synthesis. Default is 'result.csv'.
-config_file : config file has parameters use for evaluation and processing. Default is 'config.json'.
+## Example parameter in config file
 
-if you want to run it faster, you can increase the number in 'num_processes' parameter for more compute processes in config file.
+```
+
+{
+    "sampling_rate": 16000, /* sampling rate of audio*/
+    "num_features": 200, /* number of spectrogram features */ 
+    "window_size": 0.02,
+    "hop_length": 0.01,
+    "db_threshold":35, /* DB threshold for remove silence */
+    "asr_params": {
+        "checkpoint":"", /* path of wav2letter+ checkpoint */
+        "device":"cpu"
+    },
+    "num_thread":30
+}
+
+```
+
+Metadata of wav2letter+ pretrain without hovorod has provide in floder 'w2lplus_eng_meta'
