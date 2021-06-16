@@ -44,8 +44,11 @@ class SLSRD():
             self._asr_model = ASRModel(asr_checkpoint, 
                                     config['asr_params'].get('device', 'cpu'))
         else:
-            raise ValueError("ASR checkpoint is not found")
+            self._asr_model = None
             
+        if self.use_spectral == False and self._asr_model is None:
+            raise ValueError("if not use ASR feature, use_spectral must be True")
+        
     def gain_ref_energy(self, ref_signal, signal):
         ### Gain same energy ###
         rel_non_silent_interval = librosa.effects.split(ref_signal, top_db=self.db_threshold, 
@@ -69,7 +72,7 @@ class SLSRD():
                         a_min=-1.0, a_max=1.0)
         return signal
     
-    def eval_fn(self, gt, pred):
+    def eval_fn(self, gt, pred, gt_asr_feature_path=None, pred_asr_feature_path=None):
 
         """
         eval_fn is used for evaluate a pair of prediction and groundtruth
@@ -107,23 +110,8 @@ class SLSRD():
 
         pred_signal = self.gain_ref_energy(gt_signal, pred_signal)
         
-
-        gt_asr_mel = compute_melspectogram(gt_signal, self.sample_rate, window_size=self.window_size,
-                                                hop_size=self.hop_size, n_fft=self.n_fft, num_features=64)
-        gt_asr_mel = normalize(gt_asr_mel).T
-
-        pred_asr_mel = compute_melspectogram(pred_signal, self.sample_rate, window_size=self.window_size,
-                                                hop_size=self.hop_size, n_fft=self.n_fft, num_features=64)
-        pred_asr_mel = normalize(pred_asr_mel).T
-            
-
-        gt_asr_ft = self._asr_model.get_asr_feature(gt_asr_mel)
-        pred_asr_ft = self._asr_model.get_asr_feature(pred_asr_mel)
-
-
-        dist = 0
-
-        if self.use_spectral:
+        # Extract spectrogram
+        if self.use_spectral == True:
             gt_feature = compute_spectrogram(gt_signal, self.sample_rate, n_fft=self.n_fft, 
                                             window_size=self.window_size, hop_size=self.hop_size)
             gt_feature = normalize(gt_feature[:self.num_features, :]).T
@@ -131,7 +119,38 @@ class SLSRD():
             pred_feature = compute_spectrogram(pred_signal, self.sample_rate, n_fft=self.n_fft, 
                                             window_size=self.window_size, hop_size=self.hop_size)
             pred_feature = normalize(pred_feature[:self.num_features, :]).T
+        else:
+            gt_feature, pred_feature = (None, None)
+        
+        # Extract ASR feature
+        if gt_asr_feature_path is not None and pred_asr_feature_path is not None:
+            gt_asr_ft = np.load(gt_asr_feature_path)
+            pred_asr_ft = np.load(pred_asr_feature_path)
+        elif self._asr_model is not None:
+            gt_asr_mel = compute_melspectogram(gt_signal, self.sample_rate, window_size=self.window_size,
+                                                hop_size=self.hop_size, n_fft=self.n_fft, num_features=64)
+            gt_asr_mel = normalize(gt_asr_mel).T
 
+            pred_asr_mel = compute_melspectogram(pred_signal, self.sample_rate, window_size=self.window_size,
+                                                    hop_size=self.hop_size, n_fft=self.n_fft, num_features=64)
+            pred_asr_mel = normalize(pred_asr_mel).T
+                
+            gt_asr_ft = self._asr_model.get_asr_feature(gt_asr_mel)
+            pred_asr_ft = self._asr_model.get_asr_feature(pred_asr_mel)
+        else:
+            gt_asr_ft, pred_asr_ft = (None, None)
+        
+        
+        if gt_asr_ft is None and gt_feature is not None: # SD
+            dist, path = fastdtw(gt_feature, pred_feature, dist=_dist)
+            return dist/len(path)
+        elif gt_asr_ft is not None and gt_feature is None: # LSRD
+            gt_asr_ft = normalize(gt_asr_ft[0].astype(np.float32))
+            pred_asr_ft = normalize(pred_asr_ft[0].astype(np.float32))
+            
+            dist, path = fastdtw(gt_asr_ft, pred_asr_ft, dist=_dist)
+            return dist/len(path)
+        elif gt_asr_ft is not None and gt_feature is not None: # SLSRD
             gt_asr_ft = interpolate(
                 torch.from_numpy(gt_asr_ft.astype(np.float32)).transpose(1,2), 
                 size=[len(gt_feature)], mode='linear').transpose(1,2).numpy()[0]
@@ -145,18 +164,12 @@ class SLSRD():
 
             dist, path = fastdtw(np.concatenate([gt_feature, gt_asr_ft], 1),
                             np.concatenate([pred_feature, pred_asr_ft], 1), dist=_dist)
-        else:
-            gt_asr_ft = normalize(gt_asr_ft[0].astype(np.float32))
-            pred_asr_ft = normalize(pred_asr_ft[0].astype(np.float32))
-
-
-            dist, path = fastdtw(gt_asr_ft, pred_asr_ft, dist=_dist)
-
-        return dist/len(path)
+            return dist/len(path)
+        
 
 class TTSEval():
     def __init__(self, config):
-        self.num_thread = config.get("num_thread", 6)
+        self.num_thread = config.get("num_thread", 10)
         self.eval_method = SLSRD(config)
 
         self.pool = mp.pool.ThreadPool(self.num_thread)

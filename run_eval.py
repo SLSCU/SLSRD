@@ -8,9 +8,11 @@ from slsd import TTSEval
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='TTS Evaluation')
-    parser.add_argument("csv", type=str, help='csv file')
-    parser.add_argument("--ref_path_col", type=str, help='column name of reference aduio path')
-    parser.add_argument("--syn_path_col", type=str, help='column name of synthesis aduio path')
+    parser.add_argument("csv", required=True, type=str, help='csv file')
+    parser.add_argument("--ref_path_col", type=str, required=True, help='column name of reference aduio path')
+    parser.add_argument("--syn_path_col", type=str, required=True, help='column name of synthesis aduio path')
+    parser.add_argument("--ref_asr_feature_path_col", type=str, help='column name of reference asr feature path')
+    parser.add_argument("--syn_asr_feature_path_col", type=str, help='column name of synthesis asr feature path')
     parser.add_argument("--output", type=str, default='result.csv', help='output')
     parser.add_argument('--config_file', type=str, default='config.json',
                         help='configuration file')

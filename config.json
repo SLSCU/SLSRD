@@ -9,5 +9,6 @@
             "device":"cpu"
         },
         "use_spectral":true,
+        "read_asr_on_disk":true,
         "num_thread":30
 }
