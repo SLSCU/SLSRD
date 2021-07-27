@@ -1,14 +1,13 @@
 {
     "sampling_rate": 16000,
-        "num_features": 200,
-        "window_size": 0.02,
-        "hop_length": 0.01,
-        "db_threshold":35,
-        "asr_params": {
-            "checkpoint":"",
-            "device":"cpu"
-        },
-        "use_spectral":true,
-        "read_asr_on_disk":true,
-        "num_thread":30
+    "num_features": 200,
+    "window_size": 0.02,
+    "hop_length": 0.01,
+    "db_threshold":35,
+    "asr_params": {
+        "checkpoint":"",
+        "device":"cpu"
+    },
+    "use_spectral":true,
+    "num_worker":30
 }

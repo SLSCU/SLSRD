@@ -13,6 +13,9 @@ def normalize_signal(signal):
     if max(signal) > 1 or min(signal) < -1:
         return signal / (32768 + 1e-10)
     return signal
+
+def normalize(x):
+    return (x-x.mean())/(x.std()+1e-10)
     
 def dBFS(signal, window_size, hop_length):
     """Compute Decibels relative to full scale ."""
@@ -45,4 +48,25 @@ def compute_melspectogram(signal, sample_rate, window_size, hop_size, num_featur
     return mel_spectogram
 
 
+def gain_energy(ref_signal, signal, sample_rate, window_size, hop_size, db_threshold):
+    ### Gain same energy ###
+    rel_non_silent_interval = librosa.effects.split(ref_signal, top_db=db_threshold, 
+                            frame_length=int(sample_rate * window_size), 
+                            hop_length=int(sample_rate * hop_size))
+    signal_non_silent_interval = librosa.effects.split(signal, top_db=db_threshold, 
+                            frame_length=int(sample_rate * window_size), 
+                            hop_length=int(sample_rate * hop_size))
 
+    ref_speech = np.concatenate([ref_signal[non_silent_interval[0]:non_silent_interval[1]] 
+                                for non_silent_interval in rel_non_silent_interval])
+    speech = np.concatenate([signal[non_silent_interval[0]:non_silent_interval[1]] 
+                                for non_silent_interval in signal_non_silent_interval])
+
+    gt_dbfs = np.mean(dBFS(ref_speech, int(sample_rate * window_size), 
+                        int(sample_rate * hop_size)))
+    pred_dbfs = np.mean(dBFS(speech, int(sample_rate * window_size), 
+                        int(sample_rate * hop_size)))
+    gain = gt_dbfs - pred_dbfs
+    signal = np.clip(signal*(10**(gain/20)),
+                    a_min=-1.0, a_max=1.0)
+    return signal

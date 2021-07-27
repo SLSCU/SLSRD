@@ -8,7 +8,7 @@ import librosa
 import tqdm
 from .asr_model import ASRModel
 from .istarmap import istarmap
-from .speech_utils import  normalize_signal, compute_spectrogram, compute_melspectogram, dBFS
+from .speech_utils import normalize_signal, normalize, compute_spectrogram, compute_melspectogram, gain_energy
 
 import torch
 from torch.nn.functional import interpolate
@@ -23,9 +23,6 @@ def _dist(x, y):
         distance
     """
     return np.sqrt(np.mean(np.square(x - y)))
-
-def normalize(x):
-    return (x-x.mean())/(x.std()+1e-10)
 
 class SLSRD():
     
@@ -48,29 +45,6 @@ class SLSRD():
             
         if self.use_spectral == False and self._asr_model is None:
             raise ValueError("if not use ASR feature, use_spectral must be True")
-        
-    def gain_ref_energy(self, ref_signal, signal):
-        ### Gain same energy ###
-        rel_non_silent_interval = librosa.effects.split(ref_signal, top_db=self.db_threshold, 
-                                frame_length=int(self.sample_rate * self.window_size), 
-                                hop_length=int(self.sample_rate * self.hop_size))
-        signal_non_silent_interval = librosa.effects.split(signal, top_db=self.db_threshold, 
-                                frame_length=int(self.sample_rate * self.window_size), 
-                                hop_length=int(self.sample_rate * self.hop_size))
-
-        ref_speech = np.concatenate([ref_signal[non_silent_interval[0]:non_silent_interval[1]] 
-                                    for non_silent_interval in rel_non_silent_interval])
-        speech = np.concatenate([signal[non_silent_interval[0]:non_silent_interval[1]] 
-                                    for non_silent_interval in signal_non_silent_interval])
-
-        gt_dbfs = np.mean(dBFS(ref_speech, int(self.sample_rate * self.window_size), 
-                            int(self.sample_rate * self.hop_size)))
-        pred_dbfs = np.mean(dBFS(speech, int(self.sample_rate * self.window_size), 
-                            int(self.sample_rate * self.hop_size)))
-        gain = gt_dbfs - pred_dbfs
-        signal = np.clip(signal*(10**(gain/20)),
-                        a_min=-1.0, a_max=1.0)
-        return signal
     
     def eval_fn(self, gt, pred, gt_asr_feature_path=None, pred_asr_feature_path=None):
 
@@ -108,7 +82,8 @@ class SLSRD():
                                 frame_length=int(self.sample_rate * self.window_size), 
                                 hop_length=int(self.sample_rate * self.hop_size))
 
-        pred_signal = self.gain_ref_energy(gt_signal, pred_signal)
+        pred_signal = gain_energy(gt_signal, pred_signal, self.sample_rate, 
+                                  self.window_size, self.hop_size, self.db_threshold)
         
         # Extract spectrogram
         if self.use_spectral == True:
@@ -169,10 +144,13 @@ class SLSRD():
 
 class TTSEval():
     def __init__(self, config):
-        self.num_thread = config.get("num_thread", 10)
+        self.num_worker = config.get("num_worker", 10)
         self.eval_method = SLSRD(config)
-
-        self.pool = mp.pool.ThreadPool(self.num_thread)
+        
+        if config['asr_params']['checkpoint'] is None:
+            self.pool = mp.Pool(self.num_worker)
+        else:
+            self.pool = mp.pool.ThreadPool(self.num_worker)
 
     def eval(self, gt_paths, pred_paths):
 
@@ -186,7 +164,7 @@ class TTSEval():
             Return:
                 distances : List of distance between predictions and groundtruths
         """
-        assert self.num_thread is not None, "Parameter 'num_thread' is not assigned"
+        assert self.num_worker is not None, "Parameter 'num_worker' is not assigned"
         assert len(gt_paths) == len(pred_paths), "Size must equal!"
         
         dists = list()
